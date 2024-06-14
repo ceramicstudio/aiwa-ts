@@ -7,6 +7,9 @@ const config = {
   "plugins": [
     "@typescript-eslint"
   ],
+  "ignorePatterns": [
+    "scripts",
+  ],
   "extends": [
     "next/core-web-vitals",
     "plugin:@typescript-eslint/recommended-type-checked",

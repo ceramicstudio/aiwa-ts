@@ -8,10 +8,10 @@ interface Request extends NextApiRequest {
   };
 }
 
-export default async function handler(_req: Request, res: NextApiResponse) {
+export default async function handler(req: Request, res: NextApiResponse) {
   try {
-    const result = await main("0x514E3B94F0287cAf77009039B72C321Ef5F016E6");
-    await saveData(result, "0x514E3B94F0287cAf77009039B72C321Ef5F016E6");
+    const result = await main(req.body.address);
+    await saveData(result, req.body.address);
     return res.status(200).json(result);
   } catch (error) {
     console.error(error);

@@ -1,380 +1,75 @@
-# Running Recon Locally
-This repository goes hand-in-hand with our YouTube video walk-through on how to run Ceramic Recon (Rust implementation) locally.
+# Address Interacted With Address (AIWA) on Ceramic
+An adaptation of the [AIWA](https://github.com/wbnns/aiwa) tool in TypeScript with storage on Ceramic (using ComposeDB).
 
-The major themes we will cover are:
+A tool that automatically pulls on-chain transaction data given an address input across Ethereum mainnet and Base, and subsequently saving the data to ComposeDB for easy querying and filtering. Also uses Passport to obtain humanity score.
 
-1. Guided Ceramic node setup (using Ceramic-One, i.e. our Rust implementation)
-2. ComposeDB data modeling directly relevant to fulfill the spec
-3. Data interactions (querying, mutations, filtering)
+## Dependencies
 
-## Getting Started
+In order to run this example locally, you will need to create a copy of the [.env.example](.env.example) file in the root of this directory, rename it to `.env`, and begin loading the file with active corresponding values. These include the following:
 
-We will be using this repository for part of our workshop, so let's first clone the codebase so we don't have to worry about it later (you will need npm installed):
+**ETHERSCAN_API_KEY**
 
-```bash
-git clone https://github.com/ceramicstudio/recon-starter && cd recon-starter && npm install
-```
+We will be using the [Etherscan API](https://etherscan.io/apis) to pull transaction data from Eth mainnet. Sign up for the free tier and obtain a key if you do not already have one.
 
-You can open this repository in your code editor of choice for the second half of this workshop. This implementation mimics the Kubo RPC API and relies on https://github.com/ceramicnetwork/js-ceramic for the remaining logic.
+**BASE_API_KEY**
 
-## Node Setup
-This workshop will use our [rust-ceramic](https://github.com/ceramicnetwork/rust-ceramic) implementation
+We will be using the [Base Explorer API](https://basescan.org/apis) to pull transaction data from Base. Sign up for the free tier and obtain a key if you do not already have one.
 
-You can find our external Rust-Ceramic instructions [here](https://threebox.notion.site/Ceramic-Recon-instructions-EXTERNAL-c2b93b2648d64cf0af0f4d2489d20399).
+**CERAMIC_PRIVATE_KEY**
 
-Assuming we will all be operating on macs, open a new terminal and:
+This is the private key your application will use to instantiate a static key:did in order to write transactions to Ceramic. This DID will act as the identifier for the issuer of points for your application (you).
 
-1. Install nvm (if not already installed)
-
-```bash
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-```
-
-2. Select node v20:
-
-```bash
-nvm install v20
-nvm use 20
-```
-
-3. Install js-ceramic (with nighly builds):
-
-```bash
-npm install --location=global @ceramicnetwork/cli@nightly
-```
-
-4. Download Rust-Ceramic from binary distribution:
-
-#### MacOS
-
-```bash
-curl -LO https://github.com/ceramicnetwork/rust-ceramic/releases/download/v0.13.0/ceramic-one_aarch64-apple-darwin.tar.gz
-tar zxvf ceramic-one_aarch64-apple-darwin.tar.gz
-```
-
-Open Finder, double click the `ceramic-one.pkg` file to start the install
-
- After installation, copy the binary:
-
-```bash
-sudo cp /Applications/ceramic-one /usr/local/bin/
-```
-
-#### Linux
-
-```bash
-curl -LO https://github.com/ceramicnetwork/rust-ceramic/releases/download/v0.13.0/ceramic-one_x86_64-unknown-linux-gnu.tar.gz
-tar zxvf ceramic-one_x86_64-unknown-linux-gnu.tar.gz
-dpkg -i ceramic-one.deb
-```
-
-5. Start rust-ceramic (must be started first as js-ceramic needs the endpoint on startup):
-
-```bash
-ceramic-one daemon
-```
-
-6. In a new terminal, start js-ceramic with `CERAMIC_RECON_MODE` enabled and pointing to the rust-ceramic instance:
-
-```bash
-nvm use 20
-CERAMIC_RECON_MODE="true" ceramic daemon --ipfs-api http://localhost:5001
-```
-
-We now have our Ceramic node running on port 7007. In the following steps, we will deploy our composite onto our node.
-
-**Troubleshooting** 
-
-If you received error messages, please first ensure that you're running node v20 in the terminals you're running the above commands in. Next, if you've previously ran Ceramic locally, the legacy data from those sessions might also be causing issues. Go into `~/.ceramic` from your machine's root directory (if exists) and delete the `statestore` subdirectory and the `indexing.sqlite` file before trying the commands again.
-
-### Configure Your Admin DID
-
-Back in your code editor's terminal (or a terminal opened to the `software-trust-workshop` directory), configure an admin DID our node will use in order to deploy our composites:
-
-```bash
-nvm use 20
-npm install -g @composedb/cli
-```
+If you have the [ComposeDB CLI](https://composedb.js.org/docs/0.7.x/api/modules/cli) installed globally, you can run the following command in your terminal to create one:
 
 ```bash
 composedb did:generate-private-key
 ```
 
-This will print out a unique and random private key. We need to get the public key associated with this private key.
+**PROJECT_ID**
 
-Store the private in an environment variable.
+We will be using [WalletConnect's](https://walletconnect.com/) Web3Modal for Web3 authentication.  
 
-```bash
-read -s DID_PRIVATE_KEY #paste in the key from the previous command and hit enter
-export DID_PRIVATE_KEY
-```
+You can set up a developer account for free by visiting [cloud.walletconnect.com](https://cloud.walletconnect.com/sign-in). Once authenticated, create a new app and copy over the "Project ID" value (found in the dashboard view for that corresponding app).
 
-Now generate the corresponding public key from the private key:
+**GITCOIN_API_KEY** and **SCORER_ID**  
 
-```bash
-composedb did:from-private-key
-```
+We will be using [Passport Scorer](https://scorer.gitcoin.co/) to determine our input address's humanity score. Set up an API key and a scorer ID in order to use this feature (free tier is available).
 
-On your machine, go into the following file off your machine's root: `~/.ceramic/daemon.config.json`. In your daemon.config.json file, add the did you just added into the `admin-dids` array. It should look something like this:
+## Getting Started
 
-```json
-{
-  "anchor": {},
-  "http-api": {
-    "cors-allowed-origins": [
-      ".*"
-    ],
-    "admin-dids": ["did:key:<your new public key>"]
-  },
-  "ipfs": {
-    "mode": "bundled"
-  },
-  "logger": {
-    "log-level": 2,
-    "log-to-files": false
-  },
-  "network": {
-    "name": "testnet-clay"
-  },
-  "node": {},
-  "state-store": {
-    "mode": "fs",
-    "local-directory": "/Users/<you>/.ceramic/statestore"
-  },
-  "indexing": {
-    "db": "sqlite:///Users/<you>/.ceramic/indexing.sqlite",
-    "allow-queries-before-historical-sync": true,
-    "models": []
-  }
-}
-```
+Once you've completed the steps above, you're ready to get started experimenting with the application in developer mode.
 
-Restart the js-ceramic process for the new config to take effect - go back to the original two terminals you began with, cancel the processes that are running, and re-run steps 6 above (which restarts the js-ceramic process - you can keep the rust-ceramic process running).
-
-### Deploy the Models
-
-Back in the root directory of this repository you should now be able to deploy the existing composite we previously created previously by running:
+First, install your dependencies:
 
 ```bash
-composedb composite:deploy ./src/__generated__/definition.json
+npm install
 ```
 
-### User-to-User Signals
-
-```json
-"@context": ["https://www.w3.org/2018/credentials/v1"],
-"type": ["VerifiableCredential", "PeerTrustCredential"],
-"issuanceDate": "2024-02-15T07:05:56.273Z",
-"issuer": "did:pkh:eip155:1:0x44dc4E3309B80eF7aBf41C7D0a68F0337a88F044",
-"credentialSubject":
-{
-  "id": "did:pkh:eip155:1:0xfA045B2F2A25ad0B7365010eaf9AC2Dd9905895c",
-  "trustworthiness":
-  [
-    {
-      "scope": "Honesty",
-      "level": 0.5,
-      "reason": ["Alumnus"]
-    },
-    {
-      "scope": "Software development",
-      "level": 1,
-      "reason": ["Software engineer", "Ethereum core developer"]
-    },
-    {
-      "scope": "Software security",
-      "level": 0.5,
-      "reason": ["White Hat", "Smart Contract Auditor"]
-    }
-  ]
-},
-"credentialSchema": [{
-  "id": "ipfs://QmcwYEnLysTyepjjtJw19oTDwuiopbCDbEcCuprCBiL7gl",
-  "type": "JsonSchema"
-},
-"proof": {}
-```
-
-The data model above is in JWT verifiable credential format. Here's how we are thinking about how this translates to ComposeDB:
-
-
-```GraphQL
-################## Account Trust Credentials
-type AccountTrustSignal
-  @createModel(accountRelation: SET, accountRelationFields: ["recipient"], description: "An account trust signal")
-  @createIndex(fields: [{ path: "recipient" }])
-  @createIndex(fields: [{ path: "issuanceDate" }]) {
-  issuer: DID! @documentAccount
-  recipient: DID! @accountReference
-  issuanceDate: DateTime!
-  trustWorthiness: [AccountTrustTypes!]! @list(maxLength: 1000)
-  proof: String! @string(maxLength: 10000)
-}
-
-type AccountTrustTypes {
-  scope: String! @string(maxLength: 1000)
-  level: Float! 
-  reason: [String] @string(maxLength: 1000) @list(maxLength: 100)
-}
-```
-
-**Use of SET**
-
-In ComposeDB, you can define relations between a schema model instance and the Ceramic account that controls that instance in 3 ways - SINGLE, LIST, AND SET. SINGLE requires there only ever be 1 model instance for that schema per account. LIST allows there to be an unlimited number of instances associated with that account. Conversely, SET allows developers to enforce a unique list of instances associated with an account based on a certain subfield (or set of subfields).
-
-In the schema above, by indicating SET with the `accountRelationFields` array set to "recipient", we are ensuring that user A can only create 1 instance that points to user B.
-
-For more information, read our [SET RFC](https://forum.ceramic.network/t/rfc-native-support-for-unique-list-relationships-between-stream-types-and-accounts/1406).
-
-**Use of @createIndex**
-
-The @createIndex directive instructs your ComposeDB node to build an index on the defined field, allowing developers to perform filters and ordering based on those indexes. Note that this does NOT work for embedded objects or enums.
-
-**Issuer**
-
-Any field definition marked as `DID! @documentAccount` will be automatically filled based on the authenticated account creating or updating a model instance (meaning it does not need to be manually inputted).
-
-**Proof**
-
-The plaintext fields in the `AccountTrustSignal` model provides all the information we need to read from directly. However, we've left in the "proof" field to accommodate any portable verified data object - for example, a stringified VC signed by the authenticated user.
-
-### User-to-Software Audit Signals
-
-Original JSON representation example:
-
-```json
-"id": "ipfs://QmPTqvH3vm6qcZSGqAUsq78MQa9Ctb56afRZg1WJ5sKLiu",
-"type": ["VerifiableCredential", "SecurityReportCredential"],
-"issuanceDate": "2024-02-15T07:05:56.273Z",
-"issuer": "did:pkh:eth:0x44dc4E3309B80eF7aBf41C7D0a68F0337a88F044",
-"credentialSubject":
-{
-  "id": "snap://CLwZocaUEbDErtQAsybaudZDJq65a8AwlEFgkGUpmAQ=",
-  "securityStatus": "Unsecured",
-  "securityFindings": [
-    {
-      "criticality": 1,
-      "type": "Key leak",
-      "description": "`snap_getBip44Entropy` makes the parent key accessible"
-      "lang": "en"
-    },
-    {
-      "criticality": 0.5,
-      "type": "Buffer Overflow"
-    },
-    {
-      "criticality": 0.25,
-      "type": "Phishing"
-    },
-    {
-      "criticality": 0,
-      "type": "Data leak",
-      "description": "API can communicate data to a centralized server"
-    },
-  ]
-},
-"proof": {}
-```
-
-ComposeDB interpretation:
-
-```GraphQL
-type SecurityAudit
-  @createModel(accountRelation: SET, accountRelationFields: ["subjectId"], description: "A security audit")
-  @createIndex(fields: [{ path: "subjectId" }])
-  @createIndex(fields: [{ path: "issuanceDate" }])
-  @createIndex(fields: [{ path: "securityStatus" }]) {
-  issuer: DID! @documentAccount
-  subjectId: String! @string(maxLength: 1000)
-  issuanceDate: DateTime!
-  securityStatus: Boolean!
-  securityFindings: [Findings!]! @list(maxLength: 1000)
-  proof: String! @immutable @string(maxLength: 10000)
-  reviews: [AuditReview] @relationFrom(model: "AuditReview", property: "auditId")
-}
-
-type Findings {
-  criticality: Float! 
-  type: String! @string(maxLength: 1000)
-  description: String @string(maxLength: 1000)
-  lang: String! @string(maxLength: 2)
-}
-```
-
-**Use of SET**
-
-It's highly relevant here for us to limit 1 security audit an account can issue against any 1 software verion. In this case, we've represented the identifier for a snap as `subjectId` (for example, "snap://CLwZocaUEbDErtQAsybaudZDJq65a8AwlEFgkGUpmAQ=").
-
-**Use of @immutable**
-
-Since our system will allow users to generate reviews of audits, we want to ensure that the values of those audits don't change over time (thus nullifying reviews that point to those audits). It's unreasonable to expect users to constantly keep watch across audits they've left reviews for to ensure they don't change over time, so we want some assurances that they won't change.
-
-In this case, since we're assuming that the `proof` subfield would contain a stringified signed object (like a VC), we've identified this field as immutable, which means it cannot change after it's been initially set. Given that there's a "!" following the scalar type (String), GraphQL will not allow any model instance creation query to go through without this field filled in.
-
-This implementation would require some client-side work to verify that the VC matches the values in the ComposeDB fields. Another solution could enforce locking of the entire document, if desired.
-
-**Relation to AuditReview**
-
-In the next section we will observe the `AuditReview` schema definition (which can only ever be created in relation to a specific `SecurityAudit` instance). This means that developers will be able to query based on the relationship between an `AuditReview` and the `SecurityAudit` it references, in addition to the opposite direction (`AuditReviews` associated with a specific `SecurityAudit`).
-
-### User-to-Audit Review Signals
-
-Original JSON representation example:
-
-```json
-"type": ["VerifiableCredential", "ReviewCredential"],
-"issuanceDate": "2024-02-15T07:05:56.273Z",
-"issuer": "did:pkh:eth:0x44dc4E3309B80eF7aBf41C7D0a68F0337a88F044",
-"credentialSubject":
-{
-  "id": "ipfs://QmPTqvH3vm6qcZSGqAUsq78MQa9Ctb56afRZg1WJ5sKLiu",
-  "currentStatus": "Disputed",
-  "reason": ["Missed Vulnerability"],
-},
-"proof": {}
-```
-
-ComposeDB interpretation:
-
-```GraphQL
-type AuditReview
-  @createModel(accountRelation: SET, accountRelationFields: ["auditId"], description: "An audit review")
-  @createIndex(fields: [{ path: "auditId" }])
-  @createIndex(fields: [{ path: "endorsedStatus" }]) {
-  issuer: DID! @documentAccount
-  issuanceDate: DateTime!
-  auditId: StreamID! @documentReference(model: "SecurityAudit")
-  audit: SecurityAudit! @relationDocument(property: "auditId")
-  endorsedStatus: Boolean!
-  reason: [String!]! @string(maxLength: 1000) @list(maxLength: 1000)
-  proof: String! @immutable @string(maxLength: 10000)
-}
-```
-
-**Use of SET**
-
-We want to make sure an account can only ever create 1 review per specific audit.
-
-**Relation Back to SecurityAudit**
-
-We've defined a relationship between the `AuditReview` and `SecurityAudit` schemas such that the `auditId` subfield must intake a Stream ID scalar that is a model instance document of a `SecurityAudit`. The `audit` subfield below it exposes that node for querying based on an `AuditReview` as the entrypoint. This is also what allows us to expose querying to all `AuditReview` instances from within a `SecurityAudit`.
-
-## Running Queries in the Application UI
-
-We've set up this repository so you can run some queries to an existing production node that's indexing the models found in `/composites`, as well as running queries to your local node running on localhost:7007 (which you'll be able to toggle manually).
-
-From the root of this repository (`/software-trust-system`) start your application in developer mode:
+Once installed, run the application in developer mode:
 
 ```bash
 npm run dev
 ```
 
-You can now open your browser to http://localhost:3000/.
+This action will run the [start script](scripts/run.mjs) which:
 
-Under the "ComposeDB Endpoint" you will see that an external cloud node endpoint has already been provided to you. Go ahead and fill in the fields below. Once you've added at least 1 trustworthiness item, you should be able to issue a credential.
+1. Automatically generates Ceramic credentials and a ComposeDB configuration
+2. Uses our [schema definition](composites/00-types.graphql) to compile and deploy our composite onto our local node (running on local port 7007)
+3. Starts up a GraphiQL instance on local port 5002
+4. Runs our UI on port 3000
 
-Go ahead and issue a credential with the default node endpoint given to you. 
+Navigate to http://localhost:3000 in your browser. You'll be able to create an index and query your index on the /reads page based on either the default address, or your address if you wish to connect your wallet.
 
-Navigate to `http://localhost:3000/reads` where we can verify that it synced to our node. With your local node still running, replace the value under the "ComposeDB Endpoint" text with `http://localhost:7007`. Next, if you run the default query within the `GetAccountTrustSignals` tab, you should be able to see the document you just created within the set of returned documents.
+## Learn More
 
-Finally, you can navigate to `http://localhost:3000/mutations` to explore additional pre-made queries we've constructed across the other schemas.
+To learn more about Ceramic please visit the following links
+
+- [Ceramic Documentation](https://developers.ceramic.network/learn/welcome/) - Learn more about the Ceramic Ecosystem.
+- [ComposeDB](https://developers.ceramic.network/docs/composedb/getting-started) - Details on how to use and develop with ComposeDB!
+- [Off-Chain EAS Attestations](https://docs.attest.sh/docs/tutorials/ceramic-storage) - Create off-chain attestations with EAS while using ComposeDB for storage and querying
+- [Data Control Patterns in Decentralized Storage](https://blog.ceramic.network/data-control-patterns-in-decentralized-storage/) - Learn how different teams are taking advantage of various data control patterns in the dStorage space
+- [AI Chatbot on ComposeDB](https://learnweb3.io/lessons/build-an-ai-chatbot-on-compose-db-and-the-ceramic-network) - Build an AI-powered Chatbot and save message history to ComposeDB
+- [ComposeDB API Sandbox](https://developers.ceramic.network/sandbox) - Test GraphQL queries against a live dataset directly from your browser
+- [Ceramic Blog](https://blog.ceramic.network/) - Browse technical tutorials and more on our blog
+- [Ceramic Discord](https://discord.com/invite/ceramic) - Join the Ceramic Discord
+- [Follow Ceramic on Twitter](https://twitter.com/ceramicnetwork) - Follow us on Twitter for latest announcements!

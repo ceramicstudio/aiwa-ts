@@ -20,6 +20,7 @@ type Store = {
   ) => void;
 };
 
+// only needed if you want to enable users to perform browser-side writes
 const StartAuth = async (
   walletClient: GetWalletClientResult,
   compose: ComposeClient,
@@ -51,7 +52,7 @@ const StartAuth = async (
 };
 
 const useStore = create<Store>((set) => ({
-  endpoint: "https://experiments.ceramic.dev",
+  endpoint: "http://localhost:7007",
   setEndpoint: (newEndpoint) =>
     set((_state) => ({
       endpoint: newEndpoint,
@@ -62,19 +63,19 @@ const useStore = create<Store>((set) => ({
       }),
     })),
   setCompose: (wallet, newCompose, newCeramic) => {
-    StartAuth(wallet, newCompose, newCeramic)
-      .then((auth) => {
-        set((_state) => ({
-          compose: auth,
-        }));
-      })
-      .catch((err) => {
-        console.error(err);
-      });
+    // StartAuth(wallet, newCompose, newCeramic)
+    //   .then((auth) => {
+    //     set((_state) => ({
+    //       compose: auth,
+    //     }));
+    //   })
+    //   .catch((err) => {
+    //     console.error(err);
+    //   });
   },
-  client: new CeramicClient("https://experiments.ceramic.dev"),
+  client: new CeramicClient("http://localhost:7007"),
   compose: new ComposeClient({
-    ceramic: new CeramicClient("https://experiments.ceramic.dev"),
+    ceramic: new CeramicClient("http://localhost:7007"),
     definition: definition as RuntimeCompositeDefinition,
   }),
 }));

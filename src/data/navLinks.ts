@@ -1,6 +1,6 @@
 export const navLinks = [
     {
-        title: "Home",
-        href: "/",
+        title: "Read Data",
+        href: "/reads",
     },
 ];

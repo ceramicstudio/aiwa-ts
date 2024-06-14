@@ -35,6 +35,10 @@ export interface Transaction {
   network?: string;
 }
 
+export interface Error {
+  error: string;
+}
+
 export interface Message extends Post {
   text: string;
   sentBy: string;

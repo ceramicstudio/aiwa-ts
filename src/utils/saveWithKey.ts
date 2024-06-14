@@ -23,6 +23,8 @@ export const saveData = async (
       await staticDid.authenticate();
       compose.setDID(staticDid);
       for (const tx of data) {
+        // wait half a second
+        // await new Promise((resolve) => setTimeout(resolve, 100));
         const mutationData = await compose.executeQuery(`
         mutation{
             createTransaction(input: {

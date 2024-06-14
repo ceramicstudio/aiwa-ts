@@ -1,7 +1,6 @@
 import axios from 'axios';
 import * as dotenv from 'dotenv';
 import {type Transaction} from "@/types/index";
-import * as fs from 'fs';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -11,7 +10,6 @@ const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY ?? "";
 const BASE_API_KEY = process.env.BASE_API_KEY ?? "";
 const ETHEREUM_BASE_URL = 'https://api.etherscan.io/api';
 const BASE_BASE_URL = 'https://api.basescan.org/api';
-const CSV_FILENAME = 'transactions.csv';
 const CALLS_PER_SECOND = 5;
 const DELAY = 1000 / CALLS_PER_SECOND;
 
@@ -21,6 +19,7 @@ async function getTransactions(address: string, apiKey: string, baseUrl: string,
         const response = await axios.get(url);
         const data = response.data as { status: string, message: string, result: Transaction[] };
         if (data.status === '1') {
+            console.log(data.result)
             return data.result;
         } else if (data.message === 'No transactions found') {
             return [];
@@ -48,22 +47,6 @@ async function getAllTransactions(address: string, apiKey: string, baseUrl: stri
     return allTransactions;
 }
 
-function saveTransactionsToCsv(transactions: Transaction[], filename: string): void {
-    const writer = csvWriter({ headers: [
-        'blockNumber', 'timeStamp', 'hash', 'nonce', 'blockHash', 'transactionIndex',
-        'from', 'to', 'value', 'gas', 'gasPrice', 'isError', 'txreceipt_status',
-        'input', 'contractAddress', 'cumulativeGasUsed', 'gasUsed', 'confirmations', 'network'
-    ]});
-    const stream = fs.createWriteStream(filename);
-    writer.pipe(stream);
-
-    transactions.forEach(tx => {
-        console.log(tx);
-    });
-
-    writer.end();
-}
-
 export default async function main(targetAddress: string): Promise<Transaction[]> {
     const ethereumTransactions = await getAllTransactions(targetAddress, ETHERSCAN_API_KEY, ETHEREUM_BASE_URL);
     ethereumTransactions.forEach(tx => {
@@ -77,14 +60,4 @@ export default async function main(targetAddress: string): Promise<Transaction[]
 
     const allTransactions = ethereumTransactions.concat(baseTransactions);
     return allTransactions;
-    // saveTransactionsToCsv(allTransactions, CSV_FILENAME);
-    console.log(`All transactions have been saved to ${CSV_FILENAME}`);
 }
-
-// if (process.argv.length !== 3) {
-//     console.error('Usage: ts-node script.ts <target_address>');
-//     process.exit(1);
-// }
-
-// const targetAddress = process.argv[2];
-// main(targetAddress).catch(console.error);

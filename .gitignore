@@ -3,6 +3,9 @@
 /.pnp
 .pnp.js
 
+# Ceramic
+/.ceramic
+
 # testing
 /coverage
 
