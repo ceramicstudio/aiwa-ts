@@ -6,6 +6,9 @@
 # Ceramic
 .ceramic
 
+# Admin seed
+admin_seed.txt
+
 # testing
 /coverage
 
