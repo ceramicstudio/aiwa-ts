@@ -58,7 +58,7 @@
     "hamburger-react": "^2.5.1",
     "input-otp": "^1.2.3",
     "lucide-react": "^0.363.0",
-    "next": "^14.2.1",
+    "next": "^14.2.12",
     "next-auth": "^4.24.6",
     "next-themes": "^0.3.0",
     "node-libcurl": "^4.0.0",
